@@ -15,7 +15,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type FlightmanifestCommand struct {
+type PassengerManifestCommand struct {
 	GitHub struct {
 		Token            string `long:"token"             required:"true" description:"GitHub access token"`
 		OrganizationName string `long:"organization-name" required:"true" description:"GitHub organization name"`
@@ -25,14 +25,14 @@ type FlightmanifestCommand struct {
 }
 
 func main() {
-	cmd := &FlightmanifestCommand{}
+	cmd := &PassengerManifestCommand{}
 
 	ctx := context.Background()
 
 	parser := flags.NewParser(cmd, flags.Default)
 	parser.NamespaceDelimiter = "-"
 
-	twentythousandtonnesofcrudeoil.TheEnvironmentIsPerfectlySafe(parser, "FLIGHTMANIFEST_")
+	twentythousandtonnesofcrudeoil.TheEnvironmentIsPerfectlySafe(parser, "PASSENGERMANIFEST_")
 
 	args, err := parser.Parse()
 	if err != nil {
@@ -45,7 +45,7 @@ func main() {
 		logLevel = lager.DEBUG
 	}
 
-	logger := lager.NewLogger("flightmanifest")
+	logger := lager.NewLogger("passengermanifest")
 	logger.RegisterSink(lager.NewWriterSink(w, logLevel))
 
 	err = cmd.Execute(ctx, logger, os.Stdout, args)
@@ -56,7 +56,7 @@ func main() {
 
 }
 
-func (cmd *FlightmanifestCommand) Execute(ctx context.Context, l lager.Logger, w io.Writer, argv []string) error {
+func (cmd *PassengerManifestCommand) Execute(ctx context.Context, l lager.Logger, w io.Writer, argv []string) error {
 	logger := l.Session("execute")
 
 	ghToken := &oauth2.Token{AccessToken: cmd.GitHub.Token}
