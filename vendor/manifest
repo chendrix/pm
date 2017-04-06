@@ -101,6 +101,14 @@
 			"notests": true
 		},
 		{
+			"importpath": "code.cloudfoundry.org/lager",
+			"repository": "https://github.com/cloudfoundry/lager",
+			"vcs": "git",
+			"revision": "de8e9c6c6e474e5e3668aea1a9817bdb4ceeceb0",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/golang/glog",
 			"repository": "https://github.com/golang/glog",
 			"vcs": "git",
@@ -200,6 +208,32 @@
 			"vcs": "git",
 			"revision": "febf2d34b54a69ce7530036c7503b1c9fbfdf0bb",
 			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/onsi/ginkgo",
+			"repository": "https://github.com/onsi/ginkgo",
+			"vcs": "git",
+			"revision": "77a8c1e5c40d6bb6c5eb4dd4bdce9763564f6298",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/onsi/gomega/format",
+			"repository": "https://github.com/onsi/gomega",
+			"vcs": "git",
+			"revision": "334b8f472b3af5d541c5642701c1e29e2126f486",
+			"branch": "master",
+			"path": "format",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/onsi/gomega/gbytes",
+			"repository": "https://github.com/onsi/gomega",
+			"vcs": "git",
+			"revision": "334b8f472b3af5d541c5642701c1e29e2126f486",
+			"branch": "master",
+			"path": "/gbytes",
 			"notests": true
 		},
 		{

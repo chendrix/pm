@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 
+	"code.cloudfoundry.org/lager"
 	"github.com/chendrix/pm/lib/gh"
 	"github.com/chendrix/pm/lib/tablewriter"
 	"github.com/google/go-github/github"
@@ -20,6 +20,8 @@ type FlightmanifestCommand struct {
 		Token            string `long:"token"             required:"true" description:"GitHub access token"`
 		OrganizationName string `long:"organization-name" required:"true" description:"GitHub organization name"`
 	} `group:"GitHub Configuration" namespace:"github"`
+
+	Debug bool `long:"debug" description:"Run in debug mode"`
 }
 
 func main() {
@@ -37,7 +39,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = cmd.Execute(ctx, os.Stdout, args)
+	w := os.Stdout
+	logLevel := lager.INFO
+	if cmd.Debug {
+		logLevel = lager.DEBUG
+	}
+
+	logger := lager.NewLogger("flightmanifest")
+	logger.RegisterSink(lager.NewWriterSink(w, logLevel))
+
+	err = cmd.Execute(ctx, logger, os.Stdout, args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -45,7 +56,9 @@ func main() {
 
 }
 
-func (cmd *FlightmanifestCommand) Execute(ctx context.Context, w io.Writer, argv []string) error {
+func (cmd *FlightmanifestCommand) Execute(ctx context.Context, l lager.Logger, w io.Writer, argv []string) error {
+	logger := l.Session("execute")
+
 	ghToken := &oauth2.Token{AccessToken: cmd.GitHub.Token}
 
 	ghAuth := oauth2.NewClient(ctx, oauth2.StaticTokenSource(ghToken))
@@ -54,13 +67,19 @@ func (cmd *FlightmanifestCommand) Execute(ctx context.Context, w io.Writer, argv
 
 	ghClient := gh.NewClient(githubClient)
 
-	log.Println("gathering issues")
+	logger.Debug("gathering issues")
 	issues, err := ghClient.AllIssuesForOrganization(ctx, cmd.GitHub.OrganizationName)
 	if err != nil {
 		return err
 	}
 
-	log.Println("gathering repositoryComments")
+	logger.Debug("gathering issue comments")
+	issueComments, err := ghClient.AllIssueCommentsForOrganization(ctx, cmd.GitHub.OrganizationName)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("gathering repository comments")
 	repositoryComments, err := ghClient.AllRepositoryCommentsForOrganization(ctx, cmd.GitHub.OrganizationName)
 	if err != nil {
 		return err
@@ -68,26 +87,29 @@ func (cmd *FlightmanifestCommand) Execute(ctx context.Context, w io.Writer, argv
 
 	t := tablewriter.NewCSVTableWriter(w)
 
-	log.Println("calculating report")
-	return Report(ctx, t, issues, repositoryComments)
+	logger.Debug("calculating report")
+	return Report(ctx, t, issues, issueComments, repositoryComments)
 }
 
-func Report(ctx context.Context, t tablewriter.TableWriter, issues []*github.Issue, repositoryComments []*github.RepositoryComment) error {
-
+func Report(ctx context.Context, t tablewriter.TableWriter, issues []*github.Issue, issueComments []*github.IssueComment, repositoryComments []*github.RepositoryComment) error {
 	u := NewUserList()
 
 	for _, i := range issues {
 		u.CatalogIssue(i)
 	}
 
-	for _, c := range repositoryComments {
-		u.CatalogRepositoryComment(c)
+	for _, ic := range issueComments {
+		u.CatalogIssueComment(ic)
 	}
 
-	t.SetHeader([]string{"Github User", "Opened Issues", "Repository Comments"})
+	for _, rc := range repositoryComments {
+		u.CatalogRepositoryComment(rc)
+	}
+
+	t.SetHeader([]string{"Github User", "Opened Issues", "Issue Comments", "Repository Comments"})
 
 	for name, user := range u {
-		t.Append([]string{name, fmt.Sprintf("%d", len(user.OpenedIssues)), fmt.Sprintf("%d", len(user.RepositoryComments))})
+		t.Append([]string{name, fmt.Sprintf("%d", len(user.OpenedIssues)), fmt.Sprintf("%d", len(user.IssueComments)), fmt.Sprintf("%d", len(user.RepositoryComments))})
 	}
 
 	return t.Render()
@@ -116,6 +138,23 @@ func (u UserList) CatalogIssue(i *github.Issue) {
 	u[*i.User.Login] = user
 }
 
+func (u UserList) CatalogIssueComment(c *github.IssueComment) {
+	var (
+		user   *User
+		exists bool
+	)
+
+	user, exists = u[*c.User.Login]
+	if !exists {
+		user = &User{
+			GithubUser: c.User,
+		}
+	}
+
+	user.AddIssueComment(c)
+	u[*c.User.Login] = user
+}
+
 func (u UserList) CatalogRepositoryComment(c *github.RepositoryComment) {
 	var (
 		user   *User
@@ -136,11 +175,16 @@ func (u UserList) CatalogRepositoryComment(c *github.RepositoryComment) {
 type User struct {
 	GithubUser         *github.User
 	OpenedIssues       []*github.Issue
+	IssueComments      []*github.IssueComment
 	RepositoryComments []*github.RepositoryComment
 }
 
 func (u *User) AddOpenedIssue(i *github.Issue) {
 	u.OpenedIssues = append(u.OpenedIssues, i)
+}
+
+func (u *User) AddIssueComment(c *github.IssueComment) {
+	u.IssueComments = append(u.IssueComments, c)
 }
 
 func (u *User) AddRepositoryComment(c *github.RepositoryComment) {
