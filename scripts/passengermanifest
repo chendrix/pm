@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e -x
+
+export GOPATH=$PWD/gopath
+export PATH=$GOPATH/bin:$PATH
+
+go install github.com/chendrix/pm/cmd/passengermanifest
+
+exec passengermanifest > reports/users.csv

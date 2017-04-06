@@ -1,0 +1,20 @@
+---
+platform: linux
+
+image_resource:
+  type: docker-image
+  source: {repository: golang}
+
+params:
+  PASSENGERMANIFEST_GITHUB_TOKEN:
+  PASSENGERMANIFEST_GITHUB_ORGANIZATION_NAME:
+
+inputs:
+- name: pm
+  path: gopath/src/github.com/chendrix/pm
+
+outputs:
+- name: reports
+
+run:
+  path: gopath/src/github.com/chendrix/pm/scripts/passengermanifest
