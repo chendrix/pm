@@ -69,6 +69,25 @@ func (client *Client) AllIssuesForOrganization(ctx context.Context, org string) 
 	return all, nil
 }
 
+func (client *Client) AllRepositoryCommentsForOrganization(ctx context.Context, org string) ([]*github.RepositoryComment, error) {
+	repos, err := client.PublicRepositories(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+
+	var all []*github.RepositoryComment
+	for _, repo := range repos {
+		issues, err := client.AllCommentsForRepository(ctx, repo)
+		if err != nil {
+			return nil, err
+		}
+
+		all = append(all, issues...)
+	}
+
+	return all, nil
+}
+
 func (client *Client) AllIssues(ctx context.Context, repo *github.Repository) ([]*github.Issue, error) {
 	options := openIssuesFilter
 
@@ -101,21 +120,19 @@ func (client *Client) AllIssues(ctx context.Context, repo *github.Repository) ([
 	return all, nil
 }
 
-func (client *Client) AllCommentsForIssue(
+func (client *Client) AllCommentsForRepository(
 	ctx context.Context,
 	repo *github.Repository,
-	issue *github.Issue,
-) ([]*github.IssueComment, error) {
-	options := &github.IssueListCommentsOptions{}
+) ([]*github.RepositoryComment, error) {
+	options := &github.ListOptions{}
 
-	var all []*github.IssueComment
+	var all []*github.RepositoryComment
 
 	for {
-		resources, resp, err := client.GithubClient.Issues.ListComments(
+		resources, resp, err := client.GithubClient.Repositories.ListComments(
 			ctx,
 			*repo.Owner.Login,
 			*repo.Name,
-			*issue.Number,
 			options,
 		)
 		if err != nil {
@@ -132,7 +149,7 @@ func (client *Client) AllCommentsForIssue(
 			break
 		}
 
-		options.ListOptions.Page = resp.NextPage
+		options.Page = resp.NextPage
 	}
 
 	return all, nil

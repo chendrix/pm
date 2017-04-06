@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/chendrix/pm/lib/gh"
+	"github.com/chendrix/pm/lib/tablewriter"
 	"github.com/google/go-github/github"
 	"github.com/jessevdk/go-flags"
-	"github.com/olekukonko/tablewriter"
 	"github.com/vito/twentythousandtonnesofcrudeoil"
 	"golang.org/x/oauth2"
 )
@@ -53,40 +54,43 @@ func (cmd *FlightmanifestCommand) Execute(ctx context.Context, w io.Writer, argv
 
 	ghClient := gh.NewClient(githubClient)
 
+	log.Println("gathering issues")
 	issues, err := ghClient.AllIssuesForOrganization(ctx, cmd.GitHub.OrganizationName)
 	if err != nil {
 		return err
 	}
 
-	t := tablewriter.NewWriter(w)
+	log.Println("gathering repositoryComments")
+	repositoryComments, err := ghClient.AllRepositoryCommentsForOrganization(ctx, cmd.GitHub.OrganizationName)
+	if err != nil {
+		return err
+	}
 
-	Report(ctx, t, issues)
+	t := tablewriter.NewCSVTableWriter(w)
 
-	return nil
+	log.Println("calculating report")
+	return Report(ctx, t, issues, repositoryComments)
 }
 
-type TableWriter interface {
-	SetHeader(keys []string)
-	SetFooter(keys []string)
-	Append(row []string)
-	Render()
-}
-
-func Report(ctx context.Context, t TableWriter, issues []*github.Issue) {
+func Report(ctx context.Context, t tablewriter.TableWriter, issues []*github.Issue, repositoryComments []*github.RepositoryComment) error {
 
 	u := NewUserList()
 
 	for _, i := range issues {
-		u.AddUserFromIssue(i)
+		u.CatalogIssue(i)
 	}
 
-	t.SetHeader([]string{"Github User", "Opened Issues"})
+	for _, c := range repositoryComments {
+		u.CatalogRepositoryComment(c)
+	}
+
+	t.SetHeader([]string{"Github User", "Opened Issues", "Repository Comments"})
 
 	for name, user := range u {
-		t.Append([]string{name, fmt.Sprintf("%d", len(user.OpenedIssues))})
+		t.Append([]string{name, fmt.Sprintf("%d", len(user.OpenedIssues)), fmt.Sprintf("%d", len(user.RepositoryComments))})
 	}
 
-	t.Render()
+	return t.Render()
 }
 
 type UserList map[string]*User
@@ -95,7 +99,7 @@ func NewUserList() UserList {
 	return make(map[string]*User)
 }
 
-func (u UserList) AddUserFromIssue(i *github.Issue) {
+func (u UserList) CatalogIssue(i *github.Issue) {
 	var (
 		user   *User
 		exists bool
@@ -112,11 +116,33 @@ func (u UserList) AddUserFromIssue(i *github.Issue) {
 	u[*i.User.Login] = user
 }
 
+func (u UserList) CatalogRepositoryComment(c *github.RepositoryComment) {
+	var (
+		user   *User
+		exists bool
+	)
+
+	user, exists = u[*c.User.Login]
+	if !exists {
+		user = &User{
+			GithubUser: c.User,
+		}
+	}
+
+	user.AddRepositoryComment(c)
+	u[*c.User.Login] = user
+}
+
 type User struct {
-	GithubUser   *github.User
-	OpenedIssues []*github.Issue
+	GithubUser         *github.User
+	OpenedIssues       []*github.Issue
+	RepositoryComments []*github.RepositoryComment
 }
 
 func (u *User) AddOpenedIssue(i *github.Issue) {
 	u.OpenedIssues = append(u.OpenedIssues, i)
+}
+
+func (u *User) AddRepositoryComment(c *github.RepositoryComment) {
+	u.RepositoryComments = append(u.RepositoryComments, c)
 }
